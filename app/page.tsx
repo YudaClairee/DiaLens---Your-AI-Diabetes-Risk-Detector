@@ -13,14 +13,10 @@ import {
   Cpu,
   Menu,
   X,
-  Eye,
-  FileText,
-  Settings,
   Sparkles,
-  BookOpen,
-  Clock
 } from 'lucide-react';
 import Image from 'next/image';
+import { useAbVariant } from './lib/ab-testing';
 
 interface LandingPageProps {
   onStartScreening?: () => void;
@@ -55,6 +51,9 @@ const teamMembers = [
 ];
 
 export default function LandingPage({ onStartScreening }: LandingPageProps) {
+  const { variant, track } = useAbVariant();
+  const isVariantB = variant === 'B';
+
   // --- ANIMASI MENGETIK (TYPEWRITER) ---
   const words = useMemo(() => ["Diabetes Risk", "Your Health", "Clinical Data"], []);
   const [typedText, setTypedText] = useState("");
@@ -92,6 +91,10 @@ export default function LandingPage({ onStartScreening }: LandingPageProps) {
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  };
+
+  const trackLandingCta = (event: string, ctaText: string) => {
+    track(event, { ctaText });
   };
 
   // --- STATE SCREENING INTERAKTIF ---
@@ -155,7 +158,7 @@ export default function LandingPage({ onStartScreening }: LandingPageProps) {
             <button onClick={() => setMobileNavOpen(true)} className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200">
               <Menu size={18} />
             </button>
-            <Link href="/login" className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200">
+            <Link href="/login" onClick={() => trackLandingCta('landing_cta_login_click', 'Login Account')} className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200">
               <ChevronRight size={18} />
             </Link>
           </div>
@@ -176,7 +179,7 @@ export default function LandingPage({ onStartScreening }: LandingPageProps) {
           </nav>
 
           <div>
-            <Link href="/login" className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-blue-100 flex items-center gap-1.5 hover:scale-[1.03] transition-all">
+            <Link href="/login" onClick={() => trackLandingCta('landing_cta_login_click', 'Login Account')} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-blue-100 flex items-center gap-1.5 hover:scale-[1.03] transition-all">
               <span>Login Account</span>
               <ChevronRight size={13} strokeWidth={3} />
             </Link>
@@ -202,7 +205,7 @@ export default function LandingPage({ onStartScreening }: LandingPageProps) {
               <a onClick={(e) => { handleSmoothScroll(e, 'home'); setMobileNavOpen(false); }} href="#home" className="py-3 text-sm font-bold text-slate-700">Home</a>
               <a onClick={(e) => { handleSmoothScroll(e, 'screening'); setMobileNavOpen(false); }} href="#screening" className="py-3 text-sm font-bold text-slate-700">Demo</a>
               <a onClick={(e) => { handleSmoothScroll(e, 'about'); setMobileNavOpen(false); }} href="#about" className="py-3 text-sm font-bold text-slate-700">About</a>
-              <Link href="/login" onClick={() => setMobileNavOpen(false)} className="mt-4 inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider shadow-md">Login Account</Link>
+              <Link href="/login" onClick={() => { trackLandingCta('landing_cta_login_click', 'Login Account'); setMobileNavOpen(false); }} className="mt-4 inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider shadow-md">Login Account</Link>
             </nav>
           </div>
         </div>
@@ -218,19 +221,43 @@ export default function LandingPage({ onStartScreening }: LandingPageProps) {
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight leading-[1.1] max-w-4xl">
-            The Clinical Curator <br />
-            for <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 border-r-4 border-indigo-600 pr-2">{typedText}</span>
+            {isVariantB ? (
+              <>
+                Cek Risiko Diabetes <br />
+                dalam 2 Menit
+              </>
+            ) : (
+              <>
+                The Clinical Curator <br />
+                for <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 border-r-4 border-indigo-600 pr-2">{typedText}</span>
+              </>
+            )}
           </h1>
 
           <p className="text-slate-500 text-base md:text-lg font-medium leading-relaxed max-w-2xl">
-           DiaLens AI berfungsi sebagai instrumen skrining risiko awal, bukan pengganti diagnosis medis profesional. Persentase risiko bersifat estimasi analitis dan wajib diverifikasi oleh tenaga kesehatan berkualifikasi sebelum diambil keputusan medis. Segera hubungi dokter jika Anda merasakan gejala klinis.
+            {isVariantB
+              ? 'Isi beberapa data kesehatan dasar, lalu DiaLens membantu memperkirakan tingkat risiko diabetes dan memberi rekomendasi tindak lanjut.'
+              : 'DiaLens AI berfungsi sebagai instrumen skrining risiko awal, bukan pengganti diagnosis medis profesional. Persentase risiko bersifat estimasi analitis dan wajib diverifikasi oleh tenaga kesehatan berkualifikasi sebelum diambil keputusan medis. Segera hubungi dokter jika Anda merasakan gejala klinis.'}
           </p>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 pt-4">
-            <a href="#screening" onClick={(e) => handleSmoothScroll(e, 'screening')} className="group bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black px-8 py-4 rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-blue-200 hover:shadow-blue-300 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]">
-              <span>Coba Skrining Gratis</span>
-              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-            </a>
+            {isVariantB ? (
+              <>
+                <Link href="/check" onClick={() => trackLandingCta('landing_cta_primary_click', 'Mulai Cek Risiko')} className="group bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black px-8 py-4 rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-blue-200 hover:shadow-blue-300 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]">
+                  <span>Mulai Cek Risiko</span>
+                  <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </Link>
+                <Link href="/login" onClick={() => trackLandingCta('landing_cta_login_click', 'Masuk ke Akun')} className="group border border-blue-200 bg-white/80 text-blue-700 font-black px-8 py-4 rounded-2xl text-xs uppercase tracking-wider shadow-sm hover:shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.02]">
+                  <span>Masuk ke Akun</span>
+                  <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </>
+            ) : (
+              <a href="#screening" onClick={(e) => { trackLandingCta('landing_cta_primary_click', 'Coba Skrining Gratis'); handleSmoothScroll(e, 'screening'); }} className="group bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black px-8 py-4 rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-blue-200 hover:shadow-blue-300 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]">
+                <span>Coba Skrining Gratis</span>
+                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </a>
+            )}
           </div>
         </div>
 

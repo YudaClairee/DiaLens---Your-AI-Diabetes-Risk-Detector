@@ -62,8 +62,8 @@ export default function LoginPage() {
 
       // Alihkan pengguna ke halaman dashboard
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Terjadi kesalahan jaringan.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan jaringan.');
     } finally {
       setLoading(false);
     }

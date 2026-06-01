@@ -57,8 +57,8 @@ export default function RegisterPage() {
       
       // Arahkan ke halaman login setelah berhasil mendaftar
       router.push('/login');
-    } catch (err: any) {
-      setError(err.message || 'Terjadi kesalahan jaringan.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan jaringan.');
     } finally {
       setLoading(false);
     }

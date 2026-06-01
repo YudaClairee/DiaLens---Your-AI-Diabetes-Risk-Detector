@@ -16,6 +16,7 @@ import {
 import Sidebar from '../components/Sidebar';
 import { API_BASE_URL } from '../lib/api-url';
 import { getApiErrorMessage } from '../lib/get-api-error-message';
+import { useAbVariant } from '../lib/ab-testing';
 import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 
@@ -90,6 +91,8 @@ const formatRecommendationText = (text: string) => {
 };
 
 export default function HistoryPage() {
+  const { variant, track } = useAbVariant();
+  const isVariantB = variant === 'B';
   const [searchTerm, setSearchTerm] = useState('');
   const [historyData, setHistoryData] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -257,12 +260,20 @@ export default function HistoryPage() {
   });
 
   const handleOpenModal = (item: HistoryItem) => {
+    track('history_detail_open', {
+      riskLevel: item.status,
+      probability: item.diabetesRisk,
+    });
     setSelectedItem(item);
     setIsModalOpen(true);
   };
 
   const handleDownloadPDF = async () => {
     if (!receiptRef.current) return;
+    track('history_pdf_download', {
+      riskLevel: selectedItem?.status ?? '',
+      probability: selectedItem?.diabetesRisk ?? 0,
+    });
     setIsDownloading(true);
     try {
       const element = receiptRef.current;
@@ -302,6 +313,12 @@ export default function HistoryPage() {
     }
   };
 
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextSearchTerm = event.target.value;
+    setSearchTerm(nextSearchTerm);
+    track('history_search', { queryLength: nextSearchTerm.length });
+  };
+
   const getRiskTheme = (status: 'LOW' | 'MEDIUM' | 'HIGH') => {
     switch (status) {
       case 'HIGH':
@@ -330,6 +347,11 @@ export default function HistoryPage() {
                   <p className="text-xs text-blue-50/80 font-medium mt-1">
                     Kelola, cetak dokumen PDF resi, dan bersihkan log diagnosis medis AI sesuai akun Anda.
                   </p>
+                  {isVariantB && (
+                    <p className="text-xs text-blue-50 font-semibold mt-2 max-w-2xl">
+                      Gunakan riwayat untuk membandingkan hasil skrining dan mengunduh PDF hasil pemeriksaan.
+                    </p>
+                  )}
                 </div>
                 <button 
                   onClick={fetchUserHistory}
@@ -360,7 +382,7 @@ export default function HistoryPage() {
                 placeholder="Cari berdasarkan ID Log unik, status risiko AI, atau tanggal periksa..."
                 className="w-full text-xs font-semibold outline-none bg-transparent placeholder:text-slate-400 text-slate-700"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={handleSearchChange}
               />
             </div>
 

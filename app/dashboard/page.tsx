@@ -26,6 +26,7 @@ import {
 import Sidebar from '../components/Sidebar';
 import { API_BASE_URL } from '../lib/api-url';
 import { getApiErrorMessage } from '../lib/get-api-error-message';
+import { useAbVariant } from '../lib/ab-testing';
 
 interface MedicalLog {
   id: string;
@@ -42,6 +43,31 @@ interface MedicalLog {
   risk_level?: string;         
   diabetesRisk?: number; 
 }
+
+type RawHealthRecord = {
+  id?: string | number;
+  _id?: string | number;
+  date?: string;
+  createdAt?: string;
+  age?: string | number;
+  weight?: string | number;
+  height?: string | number;
+  bmi?: string | number;
+  BMI?: string | number;
+  highBP?: unknown;
+  HighBP?: unknown;
+  highChol?: unknown;
+  HighChol?: unknown;
+  prediction?: string | number;
+  status?: string;
+  ai_recommendation?: string;
+  risk_level?: string | number;
+  diabetesRisk?: string | number;
+  probability?: string | number;
+  risk_score?: string | number;
+  records?: unknown;
+  data?: unknown;
+};
 
 interface StatCardProps {
   title: string;
@@ -71,7 +97,36 @@ const StatCard = ({ title, value, desc, icon: Icon, iconBg, gradientBg, valueCol
   </div>
 );
 
+const isRawHealthRecord = (value: unknown): value is RawHealthRecord => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const getRecordsFromResponse = (value: unknown): RawHealthRecord[] => {
+  if (Array.isArray(value)) {
+    return value.filter(isRawHealthRecord);
+  }
+
+  if (!isRawHealthRecord(value)) {
+    return [];
+  }
+
+  const possibleRecords = value.records;
+  const possibleData = value.data;
+
+  if (Array.isArray(possibleRecords)) {
+    return possibleRecords.filter(isRawHealthRecord);
+  }
+
+  if (Array.isArray(possibleData)) {
+    return possibleData.filter(isRawHealthRecord);
+  }
+
+  return [];
+};
+
 export default function DashboardPage() {
+  const { variant, track } = useAbVariant();
+  const isVariantB = variant === 'B';
   const [displayName, setDisplayName] = useState('Pengguna DiaLens');
   const [historyData, setHistoryData] = useState<MedicalLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -116,14 +171,8 @@ export default function DashboardPage() {
         throw new Error(getApiErrorMessage(errData));
       }
 
-      const resJson = await res.json();
-      
-      let history: any[] = [];
-      if (Array.isArray(resJson)) {
-        history = resJson;
-      } else if (resJson && typeof resJson === 'object') {
-        history = resJson.records || resJson.data || [];
-      }
+      const resJson: unknown = await res.json();
+      const history = getRecordsFromResponse(resJson);
 
       const normalizeYesNo = (value: unknown): string => {
         return value === 1 || value === '1' || value === true || value === 'Ya' || value === 'yes'
@@ -131,25 +180,26 @@ export default function DashboardPage() {
           : 'Tidak';
       };
 
-      const normalizedHistory: MedicalLog[] = history.map((log: any) => {
+      const normalizedHistory: MedicalLog[] = history.map((log) => {
         const rawBmi = log.bmi ?? log.BMI;
         const numericBmi = Number(rawBmi);
         const finalBmi = Number.isFinite(numericBmi) && numericBmi > 0
           ? numericBmi.toFixed(1)
           : '-';
 
-        let riskText = log.risk_level || log.prediction || 'Low';
-        if (riskText === '1' || riskText === 1 || riskText === 'Diabetes Terdeteksi') riskText = 'High';
-        if (riskText === '0' || riskText === 0 || riskText === 'Aman / Normal') riskText = 'Low';
+        const rawRiskText = log.risk_level ?? log.prediction ?? 'Low';
+        let riskText = String(rawRiskText);
+        if (rawRiskText === '1' || rawRiskText === 1 || rawRiskText === 'Diabetes Terdeteksi') riskText = 'High';
+        if (rawRiskText === '0' || rawRiskText === 0 || rawRiskText === 'Aman / Normal') riskText = 'Low';
 
         const rawRisk = log.diabetesRisk ?? log.probability ?? log.risk_score ?? 0;
 
         return {
-          id: log.id || log._id || 'DL-Log',
+          id: String(log.id ?? log._id ?? 'DL-Log'),
           date: log.date || log.createdAt || new Date().toISOString(),
-          age: log.age || '-',
-          weight: log.weight || '-',
-          height: log.height || '-',
+          age: String(log.age ?? '-'),
+          weight: String(log.weight ?? '-'),
+          height: String(log.height ?? '-'),
           bmi: finalBmi,
           highBP: normalizeYesNo(log.highBP ?? log.HighBP),
           highChol: normalizeYesNo(log.highChol ?? log.HighChol),
@@ -205,9 +255,9 @@ export default function DashboardPage() {
           lastLog: null,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Log kesalahan penarikan data API:", error);
-      setErrorMessage(error.message || "Gagal menyinkronkan database cluster grafik.");
+      setErrorMessage(error instanceof Error ? error.message : "Gagal menyinkronkan database cluster grafik.");
     } finally {
       setLoading(false);
     }
@@ -217,19 +267,30 @@ export default function DashboardPage() {
     if (typeof window !== 'undefined') {
       const storedName = localStorage.getItem('userName');
       const storedUser = localStorage.getItem('user');
+      let nextDisplayName: string | null = storedName;
       
-      if (storedName) {
-        setDisplayName(storedName);
-      } else if (storedUser) {
+      if (!nextDisplayName && storedUser) {
         try {
-          const parsedUser = JSON.parse(storedUser);
-          if (parsedUser.name) setDisplayName(parsedUser.name);
+          const parsedUser: unknown = JSON.parse(storedUser);
+          if (parsedUser && typeof parsedUser === 'object') {
+            const user = parsedUser as { name?: unknown };
+            if (typeof user.name === 'string') {
+              nextDisplayName = user.name;
+            }
+          }
         } catch (e) {
           console.error(e);
         }
       }
+
+      const displayNameToApply = nextDisplayName;
+      if (displayNameToApply) {
+        window.queueMicrotask(() => setDisplayName(displayNameToApply));
+      }
     }
-    fetchHealthRecords();
+    window.queueMicrotask(() => {
+      void fetchHealthRecords();
+    });
   }, []);
 
   const getRiskStyles = (riskLabel: string) => {
@@ -290,6 +351,12 @@ export default function DashboardPage() {
     );
   };
 
+  const handleNewScreeningClick = () => {
+    if (isVariantB) {
+      track('dashboard_new_screening_click');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F4F8FF] text-slate-900 font-sans selection:bg-blue-100">
       <div className="flex">
@@ -312,6 +379,30 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+
+            {isVariantB && (
+              <div className="rounded-[2rem] border border-blue-100 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-blue-600 text-white shadow-sm">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-600">Skrining Baru</p>
+                      <h2 className="text-lg font-black tracking-tight text-slate-900">Mulai pemeriksaan risiko terbaru</h2>
+                    </div>
+                  </div>
+                  <Link
+                    href="/check"
+                    onClick={handleNewScreeningClick}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-center text-xs font-black uppercase tracking-[0.16em] text-white shadow-md transition-all hover:bg-blue-700"
+                  >
+                    <span>Luncurkan Skrining Baru</span>
+                    <ArrowUpRight size={16} />
+                  </Link>
+                </div>
+              </div>
+            )}
 
             {/* Error Box */}
             {errorMessage && (
@@ -467,7 +558,7 @@ export default function DashboardPage() {
                   <h3 className="text-lg font-black text-slate-900 tracking-tight">Mulai Tindakan</h3>
                 </div>
                 <div className="space-y-2.5">
-                  <Link href="/check" className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-bold text-xs transition-transform hover:scale-[1.02] shadow-sm shadow-blue-100">
+                  <Link href="/check" onClick={handleNewScreeningClick} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-bold text-xs transition-transform hover:scale-[1.02] shadow-sm shadow-blue-100">
                     <span>Luncurkan Skrining Baru</span>
                     <ArrowUpRight size={16} />
                   </Link>
